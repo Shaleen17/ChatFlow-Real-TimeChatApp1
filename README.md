@@ -1,124 +1,298 @@
-# ChatFlow — Real-Time Chat Application
+<div align="center">
 
-A full-stack real-time chat app built with Node.js, Express, MongoDB, Socket.IO, and React 18.
+# 🔐 ChatFlow
+### End-to-End Encrypted Real-Time Chat Application
 
----
+[![Node.js](https://img.shields.io/badge/Node.js-18+-339933?style=for-the-badge&logo=node.js&logoColor=white)](https://nodejs.org/)
+[![React](https://img.shields.io/badge/React-18-61DAFB?style=for-the-badge&logo=react&logoColor=black)](https://react.dev/)
+[![MongoDB](https://img.shields.io/badge/MongoDB-Atlas-47A248?style=for-the-badge&logo=mongodb&logoColor=white)](https://www.mongodb.com/)
+[![Socket.IO](https://img.shields.io/badge/Socket.IO-4.8-010101?style=for-the-badge&logo=socket.io&logoColor=white)](https://socket.io/)
+[![Deployed on Render](https://img.shields.io/badge/Backend-Render-46E3B7?style=for-the-badge&logo=render&logoColor=white)](https://render.com/)
+[![Deployed on Vercel](https://img.shields.io/badge/Frontend-Vercel-000000?style=for-the-badge&logo=vercel&logoColor=white)](https://vercel.com/)
 
-## Quick Start
+**A production-ready, full-stack chat app where the server never sees your messages.**  
+Built with classical cryptography — Diffie-Hellman Key Exchange, Caesar Cipher & Vernam Cipher — implemented entirely from scratch.
 
-```bash
-# Backend
-cd backend
-cp .env.example .env   # edit MONGO_URI and JWT_SECRET
-npm install
-npm run dev            # starts on http://localhost:5000
+[🚀 Live Demo](https://chatflow.vercel.app) · [📖 API Docs](#-api-endpoints) · [🧪 Run Tests](#-testing) · [📦 Deploy](#️-deployment)
 
-# Frontend (separate terminal)
-cd frontend
-npm install
-npm run dev            # starts on http://localhost:5173
-```
-
-> **Requirement:** MongoDB must be running (local or Atlas).
+</div>
 
 ---
 
-## Secure Chat — Diffie-Hellman + Caesar / Vernam Encryption
+## ✨ What Makes This Different
 
-Every message is encrypted **in the browser** before being sent.  
-The server and MongoDB only ever see ciphertext. Decryption happens only in the recipient's browser.
+Most chat apps store your messages in plaintext on their servers. **ChatFlow doesn't.**
 
-### How It Works
+- 🔒 **Zero plaintext on the server** — messages are encrypted in the browser before being sent
+- 🤝 **Manual Diffie-Hellman** — 2048-bit key exchange built from scratch with `BigInt` and square-and-multiply (RFC 3526 Group 14)
+- 🔑 **Private keys never leave your device** — stored only in `localStorage`, never transmitted
+- 🔄 **Real-time & encrypted** — Socket.IO + E2EE working seamlessly together
+- 🎓 **Educational** — every algorithm is hand-rolled, readable, and easy to explain
+
+---
+
+## 🏗️ Architecture
 
 ```
-Alice's browser                Server / MongoDB            Bob's browser
-──────────────────             ──────────────────          ──────────────────
-1. On login, generate a
-   2048-bit DH key pair
-   (RFC 3526 Group 14).
-   Private key → localStorage.
-   Public key ──────────────→ PUT /api/users/public-key
-                               stored in users.publicKey
-
-                                                       2. Same on Bob's side.
-
-3. Open chat with Bob.
-   Fetch Bob's publicKey.
-   sharedSecret = Bob_pub ^ alice_priv  mod p
-   masterKey    = SHA-256("chatflow-dh-v1" || sharedSecret)
-
-                                                       sharedSecret = alice_pub ^ bob_priv  mod p
-                                                       masterKey    = same SHA-256 hash  ✓
-
-4. Pick cipher (Caesar or Vernam).
-   ciphertext = encrypt(plaintext, masterKey)
-   Send: { chatId, text: ciphertext, cipher, nonce, isEncrypted: true }
-              ──────────────────────────────────────────────────────────→
-                               Store ciphertext in messages.text
-                               Store "🔒 Encrypted message" in chats.lastMessageText
-                               Broadcast receive_message event
-                                                       ─────────────────────────────→
-                                                       5. Receive ciphertext.
-                                                          plaintext = decrypt(ciphertext, masterKey)
-                                                          Display plaintext to Bob.
+┌──────────────────────┐         ┌──────────────────────┐
+│    Alice's Browser   │         │    Bob's Browser     │
+│                      │         │                      │
+│  🔑 DH Private Key   │         │  🔑 DH Private Key   │
+│  (localStorage only) │         │  (localStorage only) │
+│                      │         │                      │
+│  masterKey = SHA256( │         │  masterKey = SHA256( │
+│   DH shared secret ) │         │   DH shared secret ) │
+│         ↓            │         │         ↑            │
+│  Encrypt(plaintext)  │         │  Decrypt(ciphertext) │
+└──────────┬───────────┘         └──────────┬───────────┘
+           │  { text: "5f3a...", cipher, nonce }
+           ▼                                ▲
+┌──────────────────────────────────────────────────────┐
+│              Node.js + Express + Socket.IO            │
+│                                                      │
+│  ✅ Stores ciphertext   ✅ Broadcasts ciphertext      │
+│  ❌ Never decrypts      ❌ Never sees plaintext        │
+└──────────────────────────────┬───────────────────────┘
+                               │
+                    ┌──────────▼──────────┐
+                    │    MongoDB Atlas     │
+                    │  messages.text =    │
+                    │  "5f3a1c2d9e4b..."  │  ← ciphertext only
+                    │  chats.lastMsg  =   │
+                    │  "🔒 Encrypted msg" │
+                    └─────────────────────┘
 ```
 
-### Cryptographic Algorithms
+---
 
-| Component | Implementation |
-|-----------|---------------|
-| Key exchange | Diffie-Hellman, RFC 3526 Group 14, 2048-bit prime, g=2 |
-| Private key | 256 random bits via `crypto.getRandomValues` |
-| Key derivation | `SHA-256("chatflow-dh-v1" ∥ sharedSecretBytes)` → 32-byte master key |
-| Caesar cipher | Shift = `(masterKey[0] % 94) + 1`; printable ASCII 32–126 only |
-| Vernam cipher | SHA-256 keystream XOR, fresh 12-byte nonce per message |
-| Fingerprint | First 16 hex chars of `SHA-256(masterKey)`, grouped as `xxxx xxxx xxxx xxxx` |
+## 🚀 Features
 
-### Files Added / Modified
+### 🔐 Security & Cryptography
+- **Diffie-Hellman Key Exchange** — RFC 3526 2048-bit Group 14, square-and-multiply `modPow` with `BigInt`
+- **Caesar Cipher** — shift `= (masterKey[0] % 94) + 1`, operates on printable ASCII 32–126
+- **Vernam Cipher** — SHA-256 keystream XOR with a fresh 12-byte nonce per message (two-time-pad safe)
+- **Key Derivation** — `SHA-256("chatflow-dh-v1" ∥ sharedSecretBytes)` → 32-byte master key
+- **Visual Fingerprint** — `SHA-256(masterKey)` first 16 hex chars for out-of-band verification
 
-**New frontend files:**
-- `frontend/src/crypto/dh.js` — DH key exchange (BigInt, square-and-multiply)
-- `frontend/src/crypto/ciphers.js` — Caesar, Vernam, key derivation
-- `frontend/src/crypto/keyStore.js` — localStorage key management, master key cache
-- `frontend/src/crypto/__tests__/crypto.test.js` — 24 unit tests
-- `frontend/src/components/KeyExchangePanel.jsx` — collapsible DH info panel
+### 💬 Real-Time Chat
+- ⚡ Instant messaging via Socket.IO WebSockets with REST fallback
+- ✍️ Live typing indicators
+- 👁️ Read receipts (sent / delivered / seen)
+- 🟢 Real-time online / offline presence
+- 🔢 Unread message badge counts
 
-**Modified backend files:**
-- `backend/models/User.js` — added `publicKey` field
-- `backend/models/Message.js` — added `cipher`, `nonce`, `isEncrypted`; removed `trim` on text
-- `backend/services/messageService.js` — handles encrypted messages, validates cipher/nonce
-- `backend/controllers/userController.js` — added `updatePublicKey` handler
-- `backend/routes/userRoutes.js` — added `PUT /api/users/public-key`
-- `backend/socket/socketHandler.js` — passes cipher/nonce/isEncrypted to service
-- `backend/controllers/messageController.js` — same
+### 🎨 User Experience
+- 🔀 **Cipher selector** — switch Caesar ↔ Vernam mid-conversation; each message decrypts with its own cipher
+- 🔍 **Server View Mode** — toggle raw ciphertext view to see exactly what the server stores
+- 📊 **Key Exchange Panel** — prime p, generator g, public keys, shared fingerprint, Caesar shift
+- 🔑 **Auto key setup** — DH key pair generated and uploaded silently on first login
+- ⚠️ **New device warning** — alerts when old messages can't be decrypted on a new device
 
-### Running Tests
+---
+
+## 🧪 Testing
+
+**24 unit tests** — Node.js built-in test runner, zero extra dependencies.
 
 ```bash
 cd frontend
 npm run test:crypto
-# Expected: 24 pass, 0 fail
 ```
 
-### Demo Steps
+```
+▶ DH Prime Validation         ✔ 2048-bit  ✔ top 64 bits all 1s  ✔ bottom 64 bits all 1s
+▶ DH Shared Secret            ✔ both sides match  ✔ secret is large
+▶ Partner Key Validation      ✔ rejects 0  ✔ rejects 1  ✔ rejects p-1
+▶ Caesar Cipher               ✔ English  ✔ symbols  ✔ spaces  ✔ empty  ✔ emoji pass-through
+▶ Vernam Cipher               ✔ ASCII  ✔ emoji  ✔ multilingual  ✔ >32 bytes  ✔ >1000 bytes
+▶ Vernam Nonce Uniqueness     ✔ same plaintext → different ciphertext each time
+▶ Key Mismatch                ✔ wrong key fails for both ciphers
+▶ Key Fingerprint             ✔ both sides identical  ✔ correct format
 
-1. Open `http://localhost:5173` in two different browsers (or normal + incognito).
-2. Register **User A** in browser 1, **User B** in browser 2.
-3. Each user's public key is automatically generated and uploaded on login.
-4. User A clicks on User B to open a chat.
-5. In the conversation header, click **🔐 Key Info**.
-   - Both sides should show the **same shared-key fingerprint**.
-6. Type a message and hit Send (default: Vernam). The message appears decrypted on both sides.
-7. Use the cipher selector to switch to **Caesar** mid-conversation — each message is decrypted with its own cipher.
-8. Tick **"Show what the server sees"** to reveal raw ciphertext under each message.
+ℹ tests 24  |  pass 24  |  fail 0  ✅
+```
 
-> **Requires a secure context.**  
-> `crypto.subtle` is only available on `localhost` or `https://`. Do not serve over plain HTTP in production.
+---
 
-### Known Limitations
+## 🗄️ Database Schema
 
-1. **No public-key authentication (MITM risk):** A malicious server could substitute a different public key, performing a man-in-the-middle attack. Mitigate by comparing the shared-key fingerprint out-of-band with your chat partner.
-2. **Private key stored per browser:** If you clear localStorage or use a different device, a new key pair is generated. Old encrypted messages cannot be decrypted on the new device.
-3. **Caesar is trivially breakable:** The shift is derived from one byte of the master key (256 possible values). It is included for educational purposes only.
-4. **Vernam here is not a true one-time pad:** The keystream is SHA-256-derived (a PRF), not a purely random key of the same length. Security reduces to the security of SHA-256 as a PRF.
-5. **One-to-one chats only:** Group chats are not supported for encryption (a group would require a shared group key protocol).
+<details>
+<summary><strong>Click to expand MongoDB collections</strong></summary>
+
+### `users`
+```js
+{
+  name: String,
+  email: String,        // unique, indexed
+  password: String,     // bcrypt hash — never returned in API responses
+  publicKey: String,    // DH public key (hex) — uploaded on login
+  isOnline: Boolean,
+  lastSeen: Date
+}
+```
+
+### `messages`
+```js
+{
+  chatId: ObjectId,
+  sender: ObjectId,
+  receiver: ObjectId,
+  text: String,         // ← CIPHERTEXT (no trim, no plaintext ever stored)
+  cipher: String,       // "caesar" | "vernam" | "none"
+  nonce: String,        // 24-char hex — Vernam only
+  isEncrypted: Boolean,
+  status: String,       // "sent" | "delivered" | "seen"
+  seenAt: Date
+}
+```
+
+### `chats`
+```js
+{
+  participants: [ObjectId],
+  lastMessage: ObjectId,
+  lastMessageText: String,  // always "🔒 Encrypted message" — never plaintext
+  lastMessageTime: Date,
+  unreadCount: Map          // { userId → unreadCount }
+}
+```
+</details>
+
+---
+
+## 📡 API Endpoints
+
+| Method | Endpoint | Auth | Description |
+|--------|----------|------|-------------|
+| `POST` | `/api/auth/register` | ❌ | Register new user |
+| `POST` | `/api/auth/login` | ❌ | Login, receive JWT |
+| `GET` | `/api/users/me` | ✅ | Get current user |
+| `GET` | `/api/users?search=` | ✅ | Search users |
+| `PUT` | `/api/users/public-key` | ✅ | Upload DH public key |
+| `GET` | `/api/chats` | ✅ | Get all chats |
+| `POST` | `/api/chats` | ✅ | Create or open 1-to-1 chat |
+| `GET` | `/api/messages/:chatId` | ✅ | Paginated message history |
+| `POST` | `/api/messages` | ✅ | Send message (REST fallback) |
+| `PUT` | `/api/messages/seen/:chatId` | ✅ | Mark messages as seen |
+
+---
+
+## 🛠️ Tech Stack
+
+| Layer | Technology |
+|-------|-----------|
+| **Frontend** | React 18, Vite, React Router v7, Axios |
+| **Real-time** | Socket.IO (client + server) |
+| **Backend** | Node.js, Express.js |
+| **Database** | MongoDB with Mongoose ODM |
+| **Auth** | JSON Web Tokens + bcryptjs |
+| **Crypto** | Web Crypto API (SHA-256 + `getRandomValues` only) + manual BigInt DH |
+| **Hosting** | Render (backend) · Vercel (frontend) · MongoDB Atlas |
+
+> **Zero crypto libraries used for ciphers or key exchange** — every algorithm is implemented from scratch.
+
+---
+
+## ⚡ Quick Start
+
+### Prerequisites
+- Node.js 18+ · MongoDB Atlas account
+
+```bash
+git clone https://github.com/YOUR_USERNAME/chatflow.git
+cd chatflow
+```
+
+### Backend Setup
+```bash
+cd backend
+npm install
+cp .env.example .env   # fill in your MONGO_URI and JWT_SECRET
+npm run dev            # http://localhost:5000
+```
+
+### Frontend Setup
+```bash
+cd frontend
+npm install
+# create frontend/.env with:
+# VITE_API_URL=http://localhost:5000
+npm run dev            # http://localhost:5173
+```
+
+> **Note:** `crypto.subtle` requires a secure context. `localhost` works fine; never serve over plain HTTP in production.
+
+---
+
+## ☁️ Deployment
+
+| | Render (Backend) | Vercel (Frontend) |
+|--|--|--|
+| **Root Dir** | `backend` | `frontend` |
+| **Build** | `npm install` | `npm run build` |
+| **Start** | `node server.js` | — |
+| **Key Env Var** | `MONGO_URI`, `CLIENT_URL` | `VITE_API_URL` |
+
+Set `CLIENT_URL` on Render = your Vercel URL, and `VITE_API_URL` on Vercel = your Render URL.
+
+---
+
+## 📁 Project Structure
+
+```
+chatflow/
+├── backend/
+│   ├── config/db.js            # MongoDB connection
+│   ├── controllers/            # Auth, User, Message, Chat
+│   ├── middleware/authMiddleware.js
+│   ├── models/                 # User, Message, Chat schemas
+│   ├── routes/                 # Express routers
+│   ├── services/messageService.js  # Core message logic + cipher validation
+│   ├── socket/socketHandler.js     # All Socket.IO events
+│   └── server.js
+│
+├── frontend/src/
+│   ├── crypto/                 # 🔐 Hand-rolled cryptography
+│   │   ├── dh.js               # Diffie-Hellman (modPow, key gen, validation)
+│   │   ├── ciphers.js          # Caesar + Vernam + key derivation + fingerprint
+│   │   ├── keyStore.js         # localStorage key management + master key cache
+│   │   └── __tests__/          # 24 unit tests (Node built-in runner)
+│   ├── components/
+│   │   ├── KeyExchangePanel.jsx  # DH info panel with fingerprint
+│   │   ├── MessageInput.jsx      # Input + cipher selector
+│   │   ├── MessageList.jsx       # Messages + lock badge + server view
+│   │   └── ChatList.jsx
+│   ├── context/                # Auth + Socket providers
+│   ├── pages/Chat.jsx          # Main encrypted chat page
+│   └── services/               # API client + chat helpers
+│
+└── docs/DEMO.md                # MongoDB + Wireshark demo guide
+```
+
+---
+
+## ⚠️ Limitations
+
+| Issue | Detail |
+|-------|--------|
+| No key authentication | A malicious server could MITM — mitigated by fingerprint comparison |
+| localStorage storage | Clearing browser data loses access to encrypted message history |
+| Caesar is weak | 94 possible shifts — educational only, not production-secure |
+| PRF-based Vernam | SHA-256 keystream, not a true one-time pad |
+| 1-to-1 only | Group chat encryption requires a separate group key protocol |
+
+---
+
+## 📜 License
+
+MIT © 2026 Shaleen Singh
+
+---
+
+<div align="center">
+
+**If this project helped you understand end-to-end encryption, drop a ⭐**
+
+*Made with ❤️ and a lot of BigInt arithmetic*
+
+</div>
